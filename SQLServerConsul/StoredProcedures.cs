@@ -10,7 +10,7 @@ namespace SQLServerConsul
 {
     public static class StoredProcedures
     {
-        public static string UpdateConsulServices(string activeDatabases, string suffix = "-db", int ttlSeconds=60)
+        public static string UpdateConsulServices(string activeDatabases, string suffix = "-db", int ttlSeconds = 60)
         {
             // Consul Environment --> Input from SQL Server
             // List of Active Databases --> Input from SQL Server
@@ -70,7 +70,7 @@ namespace SQLServerConsul
             }
         }
 
-        private static QueryResult<Dictionary<string,AgentService>> GetServicesFromAgent()
+        private static QueryResult<Dictionary<string, AgentService>> GetServicesFromAgent()
         {
             using (var client = new ConsulClient())
             {
@@ -90,7 +90,7 @@ namespace SQLServerConsul
             }
         }
 
-        private static AgentServiceRegistration CreateAgentServiceRegistration(string svc,int ttlSeconds)
+        private static AgentServiceRegistration CreateAgentServiceRegistration(string svc, int ttlSeconds)
         {
             var reg = new AgentServiceRegistration();
             var chk = new AgentServiceCheck();
