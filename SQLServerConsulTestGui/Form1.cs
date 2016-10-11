@@ -20,23 +20,13 @@ namespace SQLServerConsulTestGui
 
         private void button1_Click(object sender, EventArgs e)
         {
-            var serviceList = StoredProcedures.GetCurrentServices();
+            var serviceList = StoredProcedures.GetCurrentServices(textBox4.Text);
             listBox1.DataSource = serviceList;
-        }
-
-        private void toolStripStatusLabel1_Click(object sender, EventArgs e)
-        {
-
-        }
-
-        private void button2_Click(object sender, EventArgs e)
-        {
-
         }
 
         private void button3_Click(object sender, EventArgs e)
         {
-            textBox2.Text = StoredProcedures.UpdateConsulServices("aap,noot,mies");
+            textBox2.Text = StoredProcedures.UpdateConsulServices(textBox3.Text.Replace(Environment.NewLine, ","), textBox4.Text);
         }
     }
 }
