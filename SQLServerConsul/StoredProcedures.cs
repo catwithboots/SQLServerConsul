@@ -1,16 +1,13 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
-using Microsoft.SqlServer.Server;
 using Consul;
 
 namespace SQLServerConsul
 {
     public static class StoredProcedures
     {
-        public static string UpdateConsulServices(string activeDatabases, string suffix = "-db", int ttlSeconds = 60)
+        public static void UpdateConsulServices(string activeDatabases, string suffix = "-db", int ttlSeconds = 60)
         {
             // Consul Environment --> Input from SQL Server
             // List of Active Databases --> Input from SQL Server
@@ -31,7 +28,8 @@ namespace SQLServerConsul
             var returnstring = "Registered: " + string.Join(", ", toRegister.ToArray()) + Environment.NewLine + 
                 "DeRegistered : " + string.Join(", ", toDeRegister.ToArray()) + Environment.NewLine + 
                 "Updated : " + string.Join(", ", toUpdate.ToArray());
-            return returnstring;
+
+            return;
         }
 
         // Get the current services in consul
