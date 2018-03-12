@@ -26,7 +26,8 @@ namespace SQLServerConsulTestGui
 
         private void button3_Click(object sender, EventArgs e)
         {
-            //textBox2.Text = StoredProcedures.UpdateConsulServices(textBox3.Text.Replace(Environment.NewLine, ","), textBox4.Text);
+            textBox2.Text = "";
+            StoredProcedures.UpdateConsulServices(textBox3.Text.Replace(Environment.NewLine, ","), textBox4.Text);
         }
     }
 }
