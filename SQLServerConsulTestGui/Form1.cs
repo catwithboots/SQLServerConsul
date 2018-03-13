@@ -1,12 +1,5 @@
 ﻿using SQLServerConsul;
 using System;
-using System.Collections.Generic;
-using System.ComponentModel;
-using System.Data;
-using System.Drawing;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
 using System.Windows.Forms;
 
 namespace SQLServerConsulTestGui
@@ -26,8 +19,9 @@ namespace SQLServerConsulTestGui
 
         private void button3_Click(object sender, EventArgs e)
         {
-            textBox2.Text = "";
-            StoredProcedures.UpdateConsulServices(textBox3.Text.Replace(Environment.NewLine, ","), textBox4.Text);
+            string info="";
+            StoredProcedures.UpdateConsulServices(activeDatabases: textBox3.Text.Replace(Environment.NewLine, ","), suffix: textBox4.Text, ttlSeconds: Int32.Parse(textBox5.Text), useFqdn: checkBox1.Checked);
+            textBox2.Text = info;
         }
     }
 }
