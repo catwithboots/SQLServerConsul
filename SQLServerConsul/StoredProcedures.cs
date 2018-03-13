@@ -1,35 +1,33 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Net;
 using Consul;
+using Microsoft.SqlServer.Server;
 
 namespace SQLServerConsul
 {
     public static class StoredProcedures
     {
-        public static void UpdateConsulServices(string activeDatabases, string suffix = "-db", int ttlSeconds = 60)
+        [SqlProcedure()]
+        public static void UpdateConsulServices(string activeDatabases, string suffix = "-db", int ttlSeconds = 60, bool useFqdn = false)
         {
-            // Consul Environment --> Input from SQL Server
-            // List of Active Databases --> Input from SQL Server
-            // List of Current consul services --> GetCurrentServices()
-            // DB is leading, remove services not in active database list
-            // Register services which are not registered yet
-            var currentDatabases = activeDatabases.Split(',').ToList();
-            var registeredDatabases = GetCurrentServices(suffix);
+            List<string> list1 = ((IEnumerable<string>)activeDatabases.Split(',')).ToList<string>();
+            list1 = list1.Where(s => !string.IsNullOrWhiteSpace(s)).Distinct().ToList();
+            List<string> currentServices = GetCurrentServices(suffix);
+            currentServices = currentServices.Where(s => !string.IsNullOrWhiteSpace(s)).Distinct().ToList();
+            List<string> list2 = list1.Except<string>((IEnumerable<string>)currentServices).ToList<string>();
+            List<string> list3 = currentServices.Except<string>((IEnumerable<string>)list1).ToList<string>();
+            List<string> list4 = currentServices.Intersect<string>((IEnumerable<string>)list1).ToList<string>();
+            RegisterServices(list2, suffix, ttlSeconds, useFqdn);
+            DeRegisterServices(list3, suffix);
+            UpdateServices(list4, suffix);
 
-            var toRegister = currentDatabases.Except(registeredDatabases).ToList();
-            var toDeRegister = registeredDatabases.Except(currentDatabases).ToList();
-            var toUpdate = registeredDatabases.Intersect(currentDatabases).ToList();
-
-            RegisterServices(toRegister, suffix, ttlSeconds);
-            DeRegisterServices(toDeRegister, suffix);
-            UpdateServices(toUpdate, suffix);
-
-            var returnstring = "Registered: " + string.Join(", ", toRegister.ToArray()) + Environment.NewLine + 
-                "DeRegistered : " + string.Join(", ", toDeRegister.ToArray()) + Environment.NewLine + 
-                "Updated : " + string.Join(", ", toUpdate.ToArray());
-
-            return;
+            var info = "Registered: " + string.Join(", ", list2.ToArray()) + Environment.NewLine + "DeRegistered : " + string.Join(", ", list3.ToArray()) + Environment.NewLine + "Updated : " + string.Join(", ", list4.ToArray());
+            if (SqlContext.IsAvailable)
+            {
+                SqlContext.Pipe.Send(info);
+            } 
         }
 
         // Get the current services in consul
@@ -43,13 +41,13 @@ namespace SQLServerConsul
             return currentServices; 
         }
 
-        public static void RegisterServices(List<string> services, string suffix, int ttlSeconds)
+        public static void RegisterServices(List<string> services, string suffix, int ttlSeconds, bool useFqdn = false)
         {
             foreach (string service in services)
             {
-                RegisterServiceInAgent(CreateAgentServiceRegistration(service + suffix, ttlSeconds));
-                UpdateServiceInAgent(service + suffix);
-            }
+                RegisterServiceInAgent(CreateAgentServiceRegistration(service + suffix, ttlSeconds, useFqdn));
+                UpdateServiceInAgent(service + suffix, "Updated by SQLServerConsul");
+            }            
         }
 
         public static void DeRegisterServices(List<string> services, string suffix)
@@ -80,6 +78,13 @@ namespace SQLServerConsul
                 }
                 catch (Exception e)
                 {
+                    if (SqlContext.IsAvailable)
+                    {
+                        SqlContext.Pipe.Send("Error in GetServicesFromAgent");
+                        SqlContext.Pipe.Send(e.Message);
+                        SqlContext.Pipe.Send(e.InnerException.Message);
+                        SqlContext.Pipe.Send(e.StackTrace);
+                    }
                     var ret = new QueryResult<Dictionary<string, AgentService>>();
                     ret.StatusCode = System.Net.HttpStatusCode.NotFound;
                     ret.Response = new Dictionary<string, AgentService>();
@@ -88,16 +93,19 @@ namespace SQLServerConsul
             }
         }
 
-        private static AgentServiceRegistration CreateAgentServiceRegistration(string svc, int ttlSeconds)
+        private static AgentServiceRegistration CreateAgentServiceRegistration(string svc, int ttlSeconds, bool useFqdn = false)
         {
-            var reg = new AgentServiceRegistration();
-            var chk = new AgentServiceCheck();
-            chk.DeregisterCriticalServiceAfter = new TimeSpan(1, 0, 0, 0);
-            chk.TTL = new TimeSpan(0, 0, ttlSeconds);
-            reg.Name = svc;
-            reg.Port = 1433;
-            reg.Check = chk;
-            return reg;
+            AgentServiceRegistration serviceRegistration = new AgentServiceRegistration();
+            AgentServiceCheck agentServiceCheck = new AgentServiceCheck();
+            string hostName = Dns.GetHostEntry("LocalHost").HostName;
+            agentServiceCheck.DeregisterCriticalServiceAfter = new TimeSpan?(new TimeSpan(1, 0, 0, 0));
+            agentServiceCheck.TTL = new TimeSpan?(new TimeSpan(0, 0, ttlSeconds));
+            serviceRegistration.Name = svc;
+            if (useFqdn)
+                serviceRegistration.Address = hostName;
+            serviceRegistration.Port = 1433;
+            serviceRegistration.Check = agentServiceCheck;
+            return serviceRegistration;
         }
 
         private static WriteResult RegisterServiceInAgent(AgentServiceRegistration svc)
@@ -112,6 +120,13 @@ namespace SQLServerConsul
                 }
                 catch (Exception e)
                 {
+                    if (SqlContext.IsAvailable)
+                    {
+                        SqlContext.Pipe.Send("Error in RegisterServiceInAgent");
+                        SqlContext.Pipe.Send(e.Message);
+                        SqlContext.Pipe.Send(e.InnerException.Message);
+                        SqlContext.Pipe.Send(e.StackTrace);
+                    }
                     var ret = new WriteResult();
                     ret.StatusCode = System.Net.HttpStatusCode.NotFound;
                     return ret;
@@ -130,6 +145,13 @@ namespace SQLServerConsul
                 }
                 catch (Exception e)
                 {
+                    if (SqlContext.IsAvailable)
+                    {
+                        SqlContext.Pipe.Send("Error in UpdateServiceInAgent");
+                        SqlContext.Pipe.Send(e.Message);
+                        SqlContext.Pipe.Send(e.InnerException.Message);
+                        SqlContext.Pipe.Send(e.StackTrace);
+                    }
                 }
             }
         }
@@ -146,6 +168,13 @@ namespace SQLServerConsul
                 }
                 catch (Exception e)
                 {
+                    if (SqlContext.IsAvailable)
+                    {
+                        SqlContext.Pipe.Send("Error in DeRegisterServiceInAgent");
+                        SqlContext.Pipe.Send(e.Message);
+                        SqlContext.Pipe.Send(e.InnerException.Message);
+                        SqlContext.Pipe.Send(e.StackTrace);
+                    }
                     var ret = new WriteResult();
                     ret.StatusCode = System.Net.HttpStatusCode.NotFound;
                     return ret;
